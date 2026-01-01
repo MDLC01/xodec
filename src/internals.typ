@@ -5,5 +5,8 @@
 #let get-names(value) = {
   assert.eq(type(value), str)
   let result = xodec.get_names(bytes(value))
+  if result.len() == 0 {
+    return ()
+  }
   array(result).split(0).map(name => str(bytes(name)))
 }
