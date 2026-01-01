@@ -1,1 +1,1 @@
-#import "internals.typ": codex-version, get-names
+#import "internals.typ": codex-version, get-names, get-deprecated-names
