@@ -12,5 +12,11 @@ This package makes it possible to find the names of a symbol in [Codex](https://
 ```example
 #get-names("x") \
 #get-names("∅") \
-#get-names("➡\u{FE0E}")
+#get-names("➡\u{FE0E}") \
+#get-math-names("4") \
+#get-math-names("ϕ") \
+#get-math-names("ℒ\u{FE00}") \
+#get-math-names("ℕ") \
+#get-math-names("𝑀") \
+#get-math-names("≠")
 ```

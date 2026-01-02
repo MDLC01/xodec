@@ -1,10 +1,13 @@
-use std::{collections::HashMap, path::Path};
-
+use codex::styling::{MathStyle, MathVariant, to_style};
 use codex::{Def, Module};
+use std::collections::HashSet;
+use std::fmt::Display;
+use std::{collections::HashMap, path::Path};
+use typst_syntax::ast::MathShorthand;
 
 fn explore_module(
-    symbols: &mut Vec<(String, &'static str)>,
-    deprecated: &mut Vec<(String, &'static str)>,
+    symbols: &mut Vec<(String, String)>,
+    deprecated: &mut Vec<(String, String)>,
     m: Module,
     name: &str,
     is_deprecated: bool,
@@ -26,9 +29,9 @@ fn explore_module(
                     }
                     let variant_is_deprecated = binding_is_deprecated || deprecation.is_some();
                     if variant_is_deprecated {
-                        deprecated.push((full_name, value))
+                        deprecated.push((full_name, value.to_owned()))
                     } else {
-                        symbols.push((full_name, value))
+                        symbols.push((full_name, value.to_owned()))
                     }
                 }
             }
@@ -39,8 +42,132 @@ fn explore_module(
     }
 }
 
-fn encode_symbol_list(buf: &mut String, name: &str, symbols: Vec<(String, &'static str)>) {
-    let mut symbols_by_value = HashMap::<&'static str, Vec<String>>::new();
+#[derive(Copy, Clone)]
+struct MathStyleConfig {
+    variant: MathVariant,
+    bold: bool,
+    italic: Option<bool>,
+}
+
+impl MathStyleConfig {
+    fn iter() -> impl Iterator<Item = MathStyleConfig> {
+        [
+            MathVariant::Plain,
+            MathVariant::Fraktur,
+            MathVariant::SansSerif,
+            MathVariant::Monospace,
+            MathVariant::DoubleStruck,
+            MathVariant::Chancery,
+            MathVariant::Roundhand,
+        ]
+        .into_iter()
+        .flat_map(|variant| {
+            [
+                Self {
+                    variant,
+                    bold: false,
+                    italic: None,
+                },
+                Self {
+                    variant,
+                    bold: false,
+                    italic: Some(false),
+                },
+                Self {
+                    variant,
+                    bold: false,
+                    italic: Some(true),
+                },
+                Self {
+                    variant,
+                    bold: true,
+                    italic: None,
+                },
+                Self {
+                    variant,
+                    bold: true,
+                    italic: Some(false),
+                },
+                Self {
+                    variant,
+                    bold: true,
+                    italic: Some(true),
+                },
+            ]
+        })
+    }
+
+    fn to_typst(self, body: impl Display) -> String {
+        let mut s = match self.variant {
+            MathVariant::Plain => body.to_string(),
+            MathVariant::Fraktur => format!("frak({body})"),
+            MathVariant::SansSerif => format!("sans({body})"),
+            MathVariant::Monospace => format!("mono({body})"),
+            MathVariant::DoubleStruck => format!("bb({body})"),
+            MathVariant::Chancery => format!("cal({body})"),
+            MathVariant::Roundhand => format!("scr({body})"),
+            _ => unreachable!(),
+        };
+        s = match self.italic {
+            None => s,
+            Some(false) => format!("upright({s})"),
+            Some(true) => format!("italic({s})"),
+        };
+        if self.bold {
+            s = format!("bold({s})")
+        }
+        s
+    }
+
+    fn apply_to(self, c: char) -> String {
+        let style = MathStyle::select(c, Some(self.variant), self.bold, self.italic);
+        to_style(c, style).collect()
+    }
+
+    fn find_variations(source: &str) -> impl Iterator<Item = (Self, String)> {
+        let mut found = HashSet::new();
+        Self::iter().filter_map(move |config| {
+            let res = source
+                .chars()
+                .map(|c| config.apply_to(c))
+                .collect::<String>();
+            (!found.contains(&res)).then(|| {
+                found.insert(res.clone());
+                (config, res)
+            })
+        })
+    }
+}
+
+fn find_math_names() -> Vec<(String, String)> {
+    let mut symbols = Vec::new();
+    explore_module(&mut symbols, &mut Vec::new(), codex::SYM, "", false);
+
+    // We want to list everything that can be obtained by styling a Latin
+    // letter, a digit, a Typst shorthand, or a Codex symbol.
+    let bases = ('A'..='Z')
+        .chain('a'..='z')
+        .chain('0'..='9')
+        .map(|c| (c.to_string(), c.to_string()))
+        .chain(
+            MathShorthand::LIST
+                .iter()
+                .map(|&(shorthand, value)| (shorthand.to_owned(), value.to_string())),
+        )
+        .chain(symbols);
+
+    let mut math_names = Vec::new();
+    for (name, value) in bases {
+        math_names.extend(
+            MathStyleConfig::find_variations(&value)
+                .map(|(config, value)| (config.to_typst(&name), value)),
+        )
+    }
+    math_names
+}
+
+fn encode_name_list(buf: &mut String, name: &str, symbols: Vec<(String, String)>) {
+    let mut symbols_by_value = HashMap::<_, Vec<_>>::new();
     for (name, value) in symbols {
         symbols_by_value.entry(value).or_default().push(name);
     }
@@ -54,10 +181,10 @@ fn encode_symbol_list(buf: &mut String, name: &str, symbols: Vec<(String, &'stat
                 encoded_names.push(0);
             }
             encoded_names.pop();
-            (value.as_bytes(), encoded_names)
+            (value.into_bytes(), encoded_names)
         })
         .collect::<Vec<_>>();
-    encoded_symbol_list.sort_by_key(|(value, _)| *value);
+    encoded_symbol_list.sort_by_key(|(value, _)| value.clone());
 
     buf.push_str(&format!(
         "static {}: [(&[u8], &[u8]); {}] = [\n",
@@ -76,10 +203,12 @@ fn main() {
     let mut symbols = Vec::new();
     let mut deprecated = Vec::new();
     explore_module(&mut symbols, &mut deprecated, codex::ROOT, "", false);
+    let math_names = find_math_names();
 
     let mut buf = String::new();
-    encode_symbol_list(&mut buf, "SYMBOLS", symbols);
-    encode_symbol_list(&mut buf, "DEPRECATED", deprecated);
+    encode_name_list(&mut buf, "SYMBOLS", symbols);
+    encode_name_list(&mut buf, "DEPRECATED", deprecated);
+    encode_name_list(&mut buf, "MATH_NAMES", math_names);
 
     let out = std::env::var_os("OUT_DIR").unwrap();
     let dest = Path::new(&out).join("out.rs");

@@ -11,6 +11,7 @@ wasm-minimal-protocol = { git = "https://github.com/astrale-sharp/wasm-minimal-p
 
 [build-dependencies]
 codex = "0.2.0"
+typst-syntax = "0.14.2"
 
 [profile.release]
 lto = true

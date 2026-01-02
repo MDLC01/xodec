@@ -20,3 +20,8 @@ pub fn get_names(symbol: &[u8]) -> Vec<u8> {
 pub fn get_deprecated_names(symbol: &[u8]) -> Vec<u8> {
     find_names(symbol, &DEPRECATED).to_owned()
 }
+
+#[wasm_func]
+pub fn get_math_names(symbol: &[u8]) -> Vec<u8> {
+    find_names(symbol, &MATH_NAMES).to_owned()
+}
