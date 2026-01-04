@@ -126,15 +126,27 @@ impl MathStyleConfig {
 
     fn find_variations(source: &str) -> impl Iterator<Item = (Self, String)> {
         let mut found = HashSet::new();
-        Self::iter().filter_map(move |config| {
+        Self::iter().flat_map(move |config| {
             let res = source
                 .chars()
                 .map(|c| config.apply_to(c))
                 .collect::<String>();
-            (!found.contains(&res)).then(|| {
+            let mut new = Vec::new();
+            // If the result contains a text presentation selector, we consider
+            // that we can obtain the version without the selector because math
+            // fonts have a text presentation by default.
+            if let Some(res_alt) = res.strip_suffix("\u{FE0E}")
+                && !found.contains(res_alt)
+            {
+                found.insert(res_alt.to_owned());
+                new.push((config, res_alt.to_owned()))
+            }
+            // Add the raw result as well.
+            if !found.contains(&res) {
                 found.insert(res.clone());
-                (config, res)
-            })
+                new.push((config, res))
+            }
+            new
         })
     }
 }
@@ -145,9 +157,9 @@ fn find_math_names() -> Vec<(String, String)> {
 
     // We want to list everything that can be obtained by styling a Latin
     // letter, a digit, a Typst shorthand, or a Codex symbol.
-    let bases = ('A'..='Z')
+    let bases = ('0'..='9')
+        .chain('A'..='Z')
         .chain('a'..='z')
-        .chain('0'..='9')
         .map(|c| (c.to_string(), c.to_string()))
         .chain(
             MathShorthand::LIST
