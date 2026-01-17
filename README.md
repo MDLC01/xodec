@@ -17,4 +17,4 @@ For more information on how to use this package, take a look at the rendered REA
 
 ## License
 
-Both the contents of this repository and the build packag are licensed under the [Apache License 2.0](LICENSE).
+Both the contents of this repository and the build package are licensed under the [Apache License 2.0](LICENSE).
