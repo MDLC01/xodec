@@ -178,7 +178,7 @@ fn find_math_names() -> Vec<(String, String)> {
     math_names
 }
 
-fn encode_name_list(buf: &mut String, name: &str, symbols: Vec<(String, String)>) {
+fn encode_name_map(buf: &mut String, name: &str, symbols: Vec<(String, String)>) {
     let mut symbols_by_value = HashMap::<_, Vec<_>>::new();
     for (name, value) in symbols {
         symbols_by_value.entry(value).or_default().push(name);
@@ -198,15 +198,14 @@ fn encode_name_list(buf: &mut String, name: &str, symbols: Vec<(String, String)>
         .collect::<Vec<_>>();
     encoded_symbol_list.sort_by_key(|(value, _)| value.clone());
 
-    buf.push_str(&format!(
-        "static {}: [(&[u8], &[u8]); {}] = [\n",
-        name,
-        encoded_symbol_list.len()
-    ));
+    buf.push_str(&format!("fn {name}(symbol: &[u8]) -> &'static [u8] {{\n"));
+    buf.push_str("    match symbol {\n");
     for (value, names) in encoded_symbol_list {
-        buf.push_str(&format!("    (&{value:?}, &{names:?}),\n"));
+        buf.push_str(&format!("        {value:?} => &{names:?},\n"));
     }
-    buf.push_str("];\n");
+    buf.push_str("        _ => &[],");
+    buf.push_str("    }\n");
+    buf.push_str("}\n");
 }
 
 fn main() {
@@ -218,9 +217,9 @@ fn main() {
     let math_names = find_math_names();
 
     let mut buf = String::new();
-    encode_name_list(&mut buf, "SYMBOLS", symbols);
-    encode_name_list(&mut buf, "DEPRECATED", deprecated);
-    encode_name_list(&mut buf, "MATH_NAMES", math_names);
+    encode_name_map(&mut buf, "find_sym_names", symbols);
+    encode_name_map(&mut buf, "find_deprecated_names", deprecated);
+    encode_name_map(&mut buf, "find_math_names", math_names);
 
     let out = std::env::var_os("OUT_DIR").unwrap();
     let dest = Path::new(&out).join("out.rs");
