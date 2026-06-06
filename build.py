@@ -82,7 +82,8 @@ def build_readme():
         '#set page(width: auto, height: auto, margin: 0.8em, fill: none);',
     ]
     example_count = 0
-    example = []
+    example = None
+    example_alt = None
     is_example = False
     is_start = True
     for line in initial_readme.splitlines():
@@ -98,17 +99,18 @@ def build_readme():
             example_source.append(f'#page[\n{'\n'.join(example)}\n];')
             final_lines.append(line)
             final_lines.append('')
-            final_lines.append(f'![image]({example_path(example_count).as_posix()})')
+            final_lines.append(f'![Result of the code example: {example_alt}]({example_path(example_count).as_posix()})')
         elif is_example:
             if line.startswith('%'):
                 example.append('#' + line[1:])
             else:
                 final_lines.append(line)
                 example.append(line)
-        elif line.startswith('```example'):
+        elif line.startswith('```example:'):
             final_lines.append('```typ')
             is_example = True
             example = []
+            example_alt = line[len('```example:'):].strip()
         else:
             final_lines.append(line)
 

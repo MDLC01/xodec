@@ -9,7 +9,7 @@ This package makes it possible to find the names of a symbol in [Codex](https://
 
 ## Usage
 
-```example
+```example: The names of the characters are displayed in arrays: an empty array, an array containing two names, an array containing Typst math syntax, etc..
 #get-names("x") \
 #get-names("∅") \
 #get-names("➡\u{FE0E}") \
